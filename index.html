@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的旅行足迹 - 点亮中国地图</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="./echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         /* 自定义滚动条样式 */
         ::-webkit-scrollbar {
@@ -289,12 +289,10 @@
                 </div>
             `;
             
-            // 加载中国地图 GeoJSON 数据（优先本地文件，其次网络）
+            // 加载中国地图 GeoJSON 数据（使用网络数据源）
             let geoJson = null;
             const dataSources = [
-                // 本地文件（GitHub Pages 最快）
-                { url: './china.json', type: 'local' },
-                // 阿里云数据源
+                // 阿里云数据源（国内访问快）
                 { url: 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', type: 'network' },
                 // GitHub 备用源
                 { url: 'https://raw.githubusercontent.com/aliyun/DataV-GeoAtlas/master/geojson/100000_full.json', type: 'network' }
