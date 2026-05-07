@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的旅行足迹 - 点亮中国地图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="./echarts.min.js"></script>
+    <style>
+        /* 自定义滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #06b6d4;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0891b2;
+        }
+
+        /* 地图容器样式 */
+        #map-container {
+            width: 100%;
+            min-height: 500px;
+            position: relative;
+        }
+
+        /* 加载动画 */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        /* 渐入动画 */
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out;
+        }
+
+        /* 文本截断 */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* 侧边栏卡片悬停效果 */
+        .city-card {
+            transition: all 0.3s ease;
+        }
+        .city-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            #map-container {
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-sky-50 to-cyan-50 min-h-screen">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white/80 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104-2 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-hidden">
+                        我的旅行足迹
+                    </h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="hidden md:flex items-center space-x-4 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-red-500 rounded"></div>
+                            <span>已到访</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-gray-300 rounded"></div>
+                            <span>未到访</span>
+                        </div>
+                    </div>
+                    <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg hover:bg-gray-100">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <div class="container mx-auto px-4 py-6 flex flex-col md:flex-row gap-6">
+        <!-- 地图区域 -->
+        <main class="flex-1">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">中国旅行地图</h2>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm text-gray-600">已到访：<span id="visited-count" class="font-bold text-cyan-600">0</span> 城市</span>
+                    </div>
+                </div>
+                <div id="map-container" class="w-full"></div>
+                <p class="text-sm text-gray-500 mt-4 text-center">💡 点击地图上的城市，记录您的旅行足迹</p>
+            </div>
+
+            <!-- 快捷操作区 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 mt-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">快捷操作</h3>
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="resetAllData()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        <span>重置所有数据</span>
+                    </button>
+                    <button onclick="exportData()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                        <span>导出数据</span>
+                    </button>
+                    <button onclick="importData()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span>导入数据</span>
+                    </button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+                </div>
+            </div>
+        </main>
+
+        <!-- 侧边栏 - 旅行笔记 -->
+        <aside id="sidebar" class="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out z-50 md:relative md:transform-none md:translate-x-0 md:shadow-lg md:rounded-2xl md:h-fit">
+            <div class="p-6 h-full overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">📝 旅行笔记</h2>
+                    <button onclick="toggleSidebar()" class="md:hidden p-2 hover:bg-gray-100 rounded-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="notes-container" class="space-y-4">
+                    <!-- 动态生成城市笔记卡片 -->
+                    <div class="text-center text-gray-500 py-8">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>还没有旅行记录</p>
+                        <p class="text-sm mt-2">点击地图上的城市开始记录</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 编辑弹窗 -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800" id="modal-city-name">城市名称</h3>
+                    <button onclick="closeModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- 到访状态切换 -->
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <span class="font-medium text-gray-700">到访状态</span>
+                        <button id="visit-toggle" onclick="toggleVisitStatus()" class="px-6 py-2 rounded-full font-medium transition-all">
+                            未到访
+                        </button>
+                    </div>
+
+                    <!-- 游玩时间 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            📅 游玩时间
+                        </label>
+                        <input type="text" id="visit-date" placeholder="例如：2024 年 7 月" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent">
+                    </div>
+
+                    <!-- 美食景点 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            🍜 美食景点
+                        </label>
+                        <textarea id="visit-places" rows="3" placeholder="记录你去过的美食、景点..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"></textarea>
+                    </div>
+
+                    <!-- 旅行随想 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            💭 旅行随想
+                        </label>
+                        <textarea id="visit-thoughts" rows="4" placeholder="写下你的旅行感受、故事..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"></textarea>
+                    </div>
+
+                    <!-- 保存按钮 -->
+                    <button onclick="saveCityData()" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium rounded-lg transition-all shadow-lg hover:shadow-xl">
+                        保存记录
+                    </button>
+
+                    <!-- 删除按钮 -->
+                    <button onclick="deleteCityData()" class="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-all">
+                        删除记录
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 数据存储与管理 ====================
+        const STORAGE_KEY = 'travel_map_data';
+        let cityData = {};
+        let currentCity = null;
+        let myChart = null;
+
+        // 初始化数据
+        function initData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                cityData = JSON.parse(saved);
+            }
+        }
+
+        // 保存数据到 localStorage
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cityData));
+            updateVisitedCount();
+            renderNotes();
+            updateMap();
+        }
+
+        // 获取城市数据
+        function getCityData(cityName) {
+            return cityData[cityName] || {
+                visited: false,
+                date: '',
+                places: '',
+                thoughts: ''
+            };
+        }
+
+        // ==================== ECharts 地图配置 ====================
+        async function initMap() {
+            myChart = echarts.init(document.getElementById('map-container'));
+            
+            // 显示加载提示
+            document.getElementById('map-container').innerHTML = `
+                <div class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+                        <p class="text-gray-600">正在加载地图...</p>
+                    </div>
+                </div>
+            `;
+            
+            // 加载中国地图 GeoJSON 数据（优先本地文件，其次网络）
+            let geoJson = null;
+            const dataSources = [
+                // 本地文件（GitHub Pages 最快）
+                { url: './china.json', type: 'local' },
+                // 阿里云数据源
+                { url: 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', type: 'network' },
+                // GitHub 备用源
+                { url: 'https://raw.githubusercontent.com/aliyun/DataV-GeoAtlas/master/geojson/100000_full.json', type: 'network' }
+            ];
+            
+            for (const source of dataSources) {
+                try {
+                    const response = await fetch(source.url);
+                    if (response.ok) {
+                        geoJson = await response.json();
+                        console.log(`地图数据加载成功：${source.url} (${source.type})`);
+                        break;
+                    }
+                } catch (error) {
+                    console.log(`地图数据加载失败 (${source.type}): ${source.url}`, error);
+                }
+            }
+            
+            if (!geoJson) {
+                document.getElementById('map-container').innerHTML = `
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center text-red-500 p-4">
+                            <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <p class="text-lg font-semibold mb-2">地图数据加载失败</p>
+                            <p class="text-sm mb-4">请检查网络连接，或确保 china.json 文件存在</p>
+                            <button onclick="location.reload()" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg">
+                                刷新页面
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            echarts.registerMap('china', geoJson);
+            
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        const data = getCityData(params.name);
+                        if (data.visited) {
+                            return `<div class="text-left">
+                                <strong>${params.name}</strong><br/>
+                                ✅ 已到访<br/>
+                                ${data.date ? `📅 ${data.date}<br/>` : ''}
+                                ${data.places ? `🍜 ${data.places}<br/>` : ''}
+                            </div>`;
+                        } else {
+                            return `<div class="text-left">
+                                <strong>${params.name}</strong><br/>
+                                ❌ 未到访
+                            </div>`;
+                        }
+                    }
+                },
+                geo: {
+                    map: 'china',
+                    roam: true,
+                    zoom: 1.2,
+                    label: {
+                        show: false,
+                        color: '#333',
+                        fontSize: 10
+                    },
+                    itemStyle: {
+                        areaColor: '#f3f4f6',
+                        borderColor: '#9ca3af',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            areaColor: '#fbbf24'
+                        },
+                        label: {
+                            show: true
+                        }
+                    },
+                    select: {
+                        itemStyle: {
+                            areaColor: '#f59e0b'
+                        }
+                    }
+                },
+                series: []
+            };
+
+            myChart.setOption(option);
+            
+            // 点击事件
+            myChart.on('click', function(params) {
+                openModal(params.name);
+            });
+
+            updateMap();
+        }
+
+        // 更新地图颜色
+        function updateMap() {
+            if (!myChart) return;
+
+            const visitedCities = Object.keys(cityData).filter(name => cityData[name].visited);
+            
+            myChart.setOption({
+                series: [{
+                    type: 'scatter',
+                    coordinateSystem: 'geo',
+                    data: visitedCities.map(name => {
+                        // 获取城市坐标（简化处理，使用省会坐标）
+                        const coords = getCityCoordinates(name);
+                        return {
+                            name: name,
+                            value: [...coords, 1]
+                        };
+                    }),
+                    symbolSize: 12,
+                    itemStyle: {
+                        color: '#ef4444'
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            color: '#dc2626',
+                            symbolSize: 16
+                        }
+                    }
+                }]
+            });
+        }
+
+        // 城市坐标映射（主要城市）
+        function getCityCoordinates(cityName) {
+            const coordinates = {
+                '北京': [116.407526, 39.90403],
+                '天津': [117.200983, 39.084158],
+                '上海': [121.473701, 31.230416],
+                '重庆': [106.551556, 29.563009],
+                '河北': [114.514861, 38.042851],
+                '河南': [113.625368, 34.7466],
+                '云南': [102.712251, 25.040609],
+                '辽宁': [123.431474, 41.805698],
+                '黑龙江': [126.534967, 45.756967],
+                '湖南': [113.082691, 28.19409],
+                '安徽': [117.227239, 31.820586],
+                '山东': [117.000923, 36.675807],
+                '新疆': [87.617733, 43.825592],
+                '江苏': [118.796877, 32.060255],
+                '浙江': [120.15507, 30.274084],
+                '江西': [115.858198, 28.682892],
+                '广西': [108.327544, 22.817022],
+                '甘肃': [103.8343, 36.061089],
+                '山西': [112.549248, 37.857014],
+                '内蒙古': [111.74918, 40.841402],
+                '陕西': [108.93977, 34.341574],
+                '吉林': [125.3245, 43.886841],
+                '福建': [119.306239, 26.075302],
+                '贵州': [106.713478, 26.578343],
+                '广东': [113.280637, 23.125178],
+                '青海': [101.77824, 36.623178],
+                '西藏': [91.140856, 29.645554],
+                '四川': [104.066541, 30.572269],
+                '宁夏': [106.230909, 38.487193],
+                '海南': [110.331193, 20.044002],
+                '湖北': [114.305393, 30.593099],
+                '香港': [114.169365, 22.271905],
+                '澳门': [113.54909, 22.198951],
+                '台湾': [121.509062, 25.044332]
+            };
+            return coordinates[cityName] || [116.407526, 39.90403];
+        }
+
+        // ==================== 弹窗管理 ====================
+        function openModal(cityName) {
+            currentCity = cityName;
+            const data = getCityData(cityName);
+            
+            document.getElementById('modal-city-name').textContent = cityName;
+            document.getElementById('visit-date').value = data.date;
+            document.getElementById('visit-places').value = data.places;
+            document.getElementById('visit-thoughts').value = data.thoughts;
+            
+            updateVisitButton(data.visited);
+            
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            currentCity = null;
+        }
+
+        // 切换到访状态按钮
+        function toggleVisitStatus() {
+            const data = getCityData(currentCity);
+            data.visited = !data.visited;
+            updateVisitButton(data.visited);
+        }
+
+        function updateVisitButton(visited) {
+            const btn = document.getElementById('visit-toggle');
+            if (visited) {
+                btn.textContent = '✅ 已到访';
+                btn.className = 'px-6 py-2 rounded-full font-medium transition-all bg-green-500 text-white';
+            } else {
+                btn.textContent = '❌ 未到访';
+                btn.className = 'px-6 py-2 rounded-full font-medium transition-all bg-gray-400 text-white';
+            }
+        }
+
+        // ==================== 数据操作 ====================
+        function saveCityData() {
+            if (!currentCity) return;
+
+            cityData[currentCity] = {
+                visited: document.getElementById('visit-toggle').textContent.includes('已到访'),
+                date: document.getElementById('visit-date').value,
+                places: document.getElementById('visit-places').value,
+                thoughts: document.getElementById('visit-thoughts').value
+            };
+
+            saveData();
+            closeModal();
+            showNotification('保存成功！');
+        }
+
+        function deleteCityData() {
+            if (!currentCity) return;
+
+            if (confirm(`确定要删除 "${currentCity}" 的旅行记录吗？`)) {
+                delete cityData[currentCity];
+                saveData();
+                closeModal();
+                showNotification('已删除记录');
+            }
+        }
+
+        function resetAllData() {
+            if (confirm('⚠️ 确定要重置所有旅行数据吗？此操作不可恢复！')) {
+                cityData = {};
+                saveData();
+                showNotification('已重置所有数据');
+            }
+        }
+
+        // ==================== 侧边栏笔记渲染 ====================
+        function renderNotes() {
+            const container = document.getElementById('notes-container');
+            const visitedCities = Object.entries(cityData).filter(([_, data]) => data.visited);
+
+            if (visitedCities.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>还没有旅行记录</p>
+                        <p class="text-sm mt-2">点击地图上的城市开始记录</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = visitedCities.map(([city, data]) => `
+                <div class="city-card bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-4 border border-cyan-100 cursor-pointer" onclick="openModal('${city}')">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-bold text-lg text-gray-800">${city}</h3>
+                        <span class="text-xs bg-green-500 text-white px-2 py-1 rounded-full">已到访</span>
+                    </div>
+                    ${data.date ? `
+                        <div class="flex items-center text-sm text-gray-600 mb-2">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            ${data.date}
+                        </div>
+                    ` : ''}
+                    ${data.places ? `
+                        <p class="text-sm text-gray-700 mb-2 line-clamp-2">
+                            <span class="font-medium">🍜 </span>${data.places}
+                        </p>
+                    ` : ''}
+                    ${data.thoughts ? `
+                        <p class="text-sm text-gray-600 italic line-clamp-3">
+                            💭 ${data.thoughts}
+                        </p>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // ==================== 工具函数 ====================
+        function updateVisitedCount() {
+            const count = Object.values(cityData).filter(data => data.visited).length;
+            document.getElementById('visited-count').textContent = count;
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('translate-x-full');
+        }
+
+        function showNotification(message) {
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-20 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // 3 秒后移除
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // ==================== 数据导入导出 ====================
+        function exportData() {
+            const dataStr = JSON.stringify(cityData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `旅行足迹_${new Date().toLocaleDateString('zh-CN')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showNotification('数据已导出');
+        }
+
+        function importData() {
+            document.getElementById('import-file').click();
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (confirm('导入数据将覆盖现有记录，确定继续吗？')) {
+                        cityData = imported;
+                        saveData();
+                        showNotification('数据导入成功');
+                    }
+                } catch (error) {
+                    alert('文件格式错误，请选择有效的 JSON 文件');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('edit-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // ==================== 初始化 ====================
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 开始初始化...');
+            console.log('✅ ECharts 版本:', typeof echarts !== 'undefined' ? echarts.version : '未加载');
+            
+            initData();
+            initMap();
+            updateVisitedCount();
+            renderNotes();
+            
+            console.log('✅ 初始化完成');
+
+            // 窗口大小改变时重新渲染地图
+            window.addEventListener('resize', function() {
+                myChart && myChart.resize();
+            });
+        });
+    </script>
+</body>
+</html>
