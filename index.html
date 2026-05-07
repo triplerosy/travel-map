@@ -289,10 +289,12 @@
                 </div>
             `;
             
-            // 加载中国地图 GeoJSON 数据（使用网络数据源）
+            // 加载中国地图 GeoJSON 数据（使用本地文件）
             let geoJson = null;
             const dataSources = [
-                // 阿里云数据源（国内访问快）
+                // GitHub 仓库中的本地文件（最可靠）
+                { url: './china.json', type: 'local' },
+                // 阿里云数据源（备用）
                 { url: 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', type: 'network' },
                 // GitHub 备用源
                 { url: 'https://raw.githubusercontent.com/aliyun/DataV-GeoAtlas/master/geojson/100000_full.json', type: 'network' }
