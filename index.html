@@ -289,7 +289,7 @@
                 </div>
             `;
             
-            // 加载中国地图 GeoJSON 数据（使用本地文件）
+            // 加载中国地图 GeoJSON 数据（优先本地文件）
             let geoJson = null;
             const dataSources = [
                 // GitHub 仓库中的本地文件（最可靠）
@@ -305,11 +305,11 @@
                     const response = await fetch(source.url);
                     if (response.ok) {
                         geoJson = await response.json();
-                        console.log(`地图数据加载成功：${source.url} (${source.type})`);
+                        console.log(`✅ 地图数据加载成功：${source.url} (${source.type})`);
                         break;
                     }
                 } catch (error) {
-                    console.log(`地图数据加载失败 (${source.type}): ${source.url}`, error);
+                    console.log(`❌ 地图数据加载失败 (${source.type}): ${source.url}`, error);
                 }
             }
             
